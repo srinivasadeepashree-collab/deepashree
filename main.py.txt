@@ -1,0 +1,69 @@
+import streamlit as st
+import pywhatkit
+import pyautogui
+import time
+import datetime
+import tempfile
+import os
+
+st.title("📱 WhatsApp Scheduler")
+
+phone = st.text_input("Enter phone number (with country code):", "+91")
+message = st.text_area("Type your message:")
+hour = st.number_input("Hour (24H format)", min_value=0, max_value=23, value=12)
+minute = st.number_input("Minute", min_value=0, max_value=59, value=0)
+second = st.number_input("Second", min_value=0, max_value=59, value=0)
+upload = st.file_uploader("Attach a file (image/doc/pdf):", type=["png", "jpg", "pdf", "docx"])
+
+if st.button("Schedule Message"):
+    schedule_time = datetime.datetime.now().replace(hour=hour, minute=minute, second=second, microsecond=0)
+    now = datetime.datetime.now()
+    delay = (schedule_time - now).total_seconds()
+
+    if delay < 0:
+        st.error("⛔ Scheduled time is in the past!")
+    else:
+        st.success(f"📆 Message scheduled for {hour:02d}:{minute:02d}:{second:02d}")
+
+        # Save uploaded file to temp folder if exists
+        attachment_path = None
+        if upload:
+            with tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(upload.name)[1]) as tmp_file:
+                tmp_file.write(upload.getbuffer())
+                attachment_path = tmp_file.name
+
+        st.info("⏳ Waiting to send message. Please keep your WhatsApp Web open and visible.")
+
+        # Blocking delay (UI will freeze)
+        time.sleep(delay)
+
+        try:
+            # Send message instantly
+            pywhatkit.sendwhatmsg_instantly(phone, message, wait_time=15, tab_close=True)
+
+            # If file attached, automate attachment sending
+            if attachment_path:
+                st.info("📎 Sending attachment...")
+
+                time.sleep(10)  # wait for WhatsApp Web to load
+
+                # TODO: Adjust these coordinates for your screen and WhatsApp Web layout
+                pyautogui.click(x=1250, y=950)  # click attachment button
+                time.sleep(2)
+
+                # Type full file path in dialog
+                pyautogui.write(attachment_path)
+                time.sleep(2)
+
+                pyautogui.press("enter")  # confirm file selection
+                time.sleep(2)
+
+                pyautogui.press("enter")  # send attachment
+
+                # Remove temporary file
+                os.unlink(attachment_path)
+
+            st.success("✅ Message (and attachment if any) sent!")
+
+        except Exception as e:
+            st.error(f"❌ Error sending message: {e}")
